@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "go-hello-world/**"
+      - "deploy/**"
       - ".github/workflows/go-ci.yml"
   pull_request:
     paths:
       - "go-hello-world/**"
+      - "deploy/**"
       - ".github/workflows/go-ci.yml"
 
 permissions:
@@ -37,3 +39,33 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+  build-and-push-image:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./go-hello-world
+          push: true
+          tags: |
+            ghcr.io/q-chakorn/ci-workflow-demo:${{ github.sha }}
+            ghcr.io/q-chakorn/ci-workflow-demo:latest
